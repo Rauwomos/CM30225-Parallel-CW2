@@ -1,3 +1,10 @@
+// -----------------------------------------------------------------------------
+// This version does not use scatter or gather. It is also not very memory 
+// efficient as every program mallocs memory for a full plane. While this is not
+// good practice, it is not an issue for this program as the ammount of memory
+// being used to store a plane is relatively small.
+// -----------------------------------------------------------------------------
+
 #include <stdio.h>
 #include <math.h>
 #include <time.h>
@@ -16,32 +23,35 @@ long double toSeconds(struct timespec start, struct timespec end) {
 
 // TODO propper doc string
 // Generates a 2D array of uninitialised doubles
-double** newPlane(int n) {
-    double** plane = ( double** )malloc(((unsigned int) n) * sizeof(double*));
-    for (int i = 0; i < n; ++i)
-        plane[i] = ( double* )malloc(((unsigned int) n) * sizeof(double));
+double** newPlane(unsigned int n) {
+    double** plane  = ( double** )malloc(n * sizeof(double*));
+    plane[0] = ( double * )malloc(n * n * sizeof(double));
+ 
+    for(unsigned int i = 0; i < n; i++)
+        plane[i] = (*plane + n * i);
+
     return plane;
 }
 
 // TODO propper doc string
 // Populates the plane's wallswith the values provided, and sets the centre parts to zero. If debug is true then it prints outs the array
-double** populatePlane(double** plane, int sizeOfPlane, double top, double bottom, double farLeft, double farRight)
+double** populatePlane(double** plane, int sizeOfPlane, double left, double right, double top, double bottom)
 {   
     // Generate 2d array of doubles
-    for(int j=0; j<sizeOfPlane; j++) {
-        for(int i=0; i<sizeOfPlane; i++) {
+    for(int i=0; i<sizeOfPlane; i++) {
+        for(int j=0; j<sizeOfPlane; j++) {
             if(i == 0) {
-                // Left
-                plane[i][j] = farLeft;
-            } else if(j == 0) {
                 // Top
                 plane[i][j] = top;
+            } else if(j == 0) {
+                // Left
+                plane[i][j] = left;
             } else if(i == sizeOfPlane-1) {
-                // Right
-                plane[i][j] = farRight;
-            } else if(j == sizeOfPlane-1) {
                 // Bottom
                 plane[i][j] = bottom;
+            } else if(j == sizeOfPlane-1) {
+                // Right
+                plane[i][j] = right;
             } else {
                 plane[i][j] = 0;
             }
@@ -149,15 +159,15 @@ unsigned long relaxPlane(double** plane, int sizeOfPlane, double tolerance, int 
     } while(!endFlag);
 
     // Simple way to bring together all the data. With a bit of math I could make this a lot faster.
-    if(world_rank == 0) {
-        for(i=endingRow; i<sizeOfPlane-1; i++) {
-            MPI_Recv(&plane[i][1], sizeOfInner, MPI_DOUBLE, MPI_ANY_SOURCE, i, MPI_COMM_WORLD, &status);
-        }
-    } else {
-        for(i=startingRow; i<endingRow; i++) {
-            MPI_Send(&plane[i][1], sizeOfInner, MPI_DOUBLE, 0, i, MPI_COMM_WORLD);        
-        }
-    }
+    // if(world_rank == 0) {
+    //     for(i=endingRow; i<sizeOfPlane-1; i++) {
+    //         MPI_Recv(&plane[i][1], sizeOfInner, MPI_DOUBLE, MPI_ANY_SOURCE, i, MPI_COMM_WORLD, &status);
+    //     }
+    // } else {
+    //     for(i=startingRow; i<endingRow; i++) {
+    //         MPI_Send(&plane[i][1], sizeOfInner, MPI_DOUBLE, 0, i, MPI_COMM_WORLD);        
+    //     }
+    // }
 
     return iterations;
 }
@@ -237,8 +247,51 @@ int main(int argc, char **argv)
     MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
+    int sizeOfInner = sizeOfPlane-2;
+    int rowsPerThreadS = sizeOfInner/world_size+1;
+    int rowsPerThreadE = sizeOfInner/world_size;
+    int remainingRows = sizeOfInner - world_size * rowsPerThreadE;
+
+    int startingRow, numRows, tempNumRows;
+
+    if(world_rank < remainingRows) {
+        startingRow = world_rank * rowsPerThreadS + 1;
+    } else {
+        startingRow = world_rank * rowsPerThreadE + remainingRows + 1;
+    }
+
+    if(world_rank < remainingRows) {
+        numRows = rowsPerThreadS;
+    } else {
+        numRows = rowsPerThreadE;
+    }
+
+    int* recvcounts = malloc(world_size * sizeof(int)); 
+    int* displs = malloc(world_size * sizeof(int));
+
+    // Calculate recvcounts and displs 
+    for(int i=0; i<world_size; i++) {
+
+        if(i < remainingRows) {
+            tempNumRows = rowsPerThreadS;
+        } else {
+            tempNumRows = rowsPerThreadE;
+        }
+
+        recvcounts[i] = tempNumRows * sizeOfPlane;
+        if(i < remainingRows) {
+            displs[i] = (i * rowsPerThreadS) * sizeOfPlane;
+        } else {
+            displs[i] = (i * rowsPerThreadE + remainingRows) * sizeOfPlane;
+        }
+    }
+
     clock_gettime(CLOCK_MONOTONIC, &start);
+    
     iterations = relaxPlane(plane, sizeOfPlane, tolerance, world_rank, world_size);
+
+    MPI_Gatherv(&plane[startingRow][0], numRows*sizeOfPlane, MPI_DOUBLE, &plane[1][0], recvcounts, displs, MPI_DOUBLE, 0, MPI_COMM_WORLD);    
+
     clock_gettime(CLOCK_MONOTONIC, &end);
 
     if(debug && !world_rank)
