@@ -137,14 +137,12 @@ unsigned long relaxPlane(double** subPlane, int numRows, int sizeOfPlane, double
     sendBot = numRows-2;
     recBot = numRows-1;
 
-    int startingRow, endingRow;
+    int startingRow;
 
     if(world_rank < remainingRows) {
         startingRow = world_rank * rowsPerThreadS + 1;
-        endingRow = startingRow + rowsPerThreadS;
     } else {
         startingRow = world_rank * rowsPerThreadE + remainingRows + 1;
-        endingRow = startingRow + rowsPerThreadE;
     }
 
     // printf("Process: %d SE: %d, %d\n", world_rank, startingRow, endingRow);
@@ -208,24 +206,8 @@ unsigned long relaxPlane(double** subPlane, int numRows, int sizeOfPlane, double
         }
 
         MPI_Allreduce(&precisionFlag, &endFlag, 1, MPI_INT, MPI_LAND, MPI_COMM_WORLD);
-        // if(iterations == 1)
-        //     break;
-    } while(!endFlag);
     
-    // if(!world_rank) {
-    //     printSubPlane(subPlane, sizeOfPlane, numRows);
-    // }
-
-    // Simple way to bring together all the data. With a bit of math I could make this a lot faster.
-    // if(world_rank == 0) {
-    //     for(i=endingRow; i<sizeOfPlane-1; i++) {
-    //         MPI_Recv(&subPlane[i][1], sizeOfInner, MPI_DOUBLE, MPI_ANY_SOURCE, i, MPI_COMM_WORLD, &status);
-    //     }
-    // } else {
-    //     for(i=startingRow; i<endingRow; i++) {
-    //         MPI_Send(&subPlane[i][1], sizeOfInner, MPI_DOUBLE, 0, i, MPI_COMM_WORLD);        
-    //     }
-    // }
+    } while(!endFlag);
 
     return iterations;
 }
