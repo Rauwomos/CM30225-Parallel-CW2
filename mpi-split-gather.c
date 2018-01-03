@@ -25,7 +25,7 @@ double** newPlane(unsigned int n) {
     double** plane  = ( double** )malloc(n * sizeof(double*));
     plane[0] = ( double * )malloc(n * n * sizeof(double));
  
-    for(unsigned int i = 0; i < n; i++)
+    for(unsigned int i = 0; i<n; i++)
         plane[i] = (*plane + n * i);
 
     return plane;
@@ -33,7 +33,7 @@ double** newPlane(unsigned int n) {
 
 // TODO propper doc string
 // Generates a 2D array of uninitialised doubles for a subsection of the plane
-double** newSubPlane(int n, int rows) {
+double** newSubPlane(unsigned int n, unsigned int rows) {
     double** plane  = ( double** )malloc(rows * sizeof(double*));
     plane[0] = ( double * )malloc(rows * n * sizeof(double));
 
@@ -244,7 +244,7 @@ int main(int argc, char **argv)
     // For timing algorithm
     struct timespec start, end;
 
-    double** plane;
+    double** plane = NULL;
     double** subPlane;
 
     unsigned long iterations;
@@ -315,8 +315,8 @@ int main(int argc, char **argv)
         numRows = rowsPerThreadE + 2;
     }
 
-    int* recvcounts = malloc(world_size * sizeof(int)); 
-    int* displs = malloc(world_size * sizeof(int));
+    int* recvcounts = malloc((unsigned int)world_size * sizeof(int)); 
+    int* displs = malloc((unsigned int)world_size * sizeof(int));
 
     // Calculate recvcounts and displs 
     for(int i=0; i<world_size; i++) {
@@ -335,12 +335,12 @@ int main(int argc, char **argv)
         }
     }
 
-    subPlane = newSubPlane(sizeOfPlane, numRows);
+    subPlane = newSubPlane((unsigned int)sizeOfPlane, (unsigned int)numRows);
 
     subPlane = populateSubPlane(subPlane, sizeOfPlane, numRows, top, bottom, left, right, world_rank, world_size);
 
     if(!world_rank){
-        plane = newPlane(sizeOfPlane);
+        plane = newPlane((unsigned int)sizeOfPlane);
         plane = populatePlane(plane, sizeOfPlane, left, right, top, bottom);
     }
 
