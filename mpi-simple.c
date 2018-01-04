@@ -231,7 +231,7 @@ int main(int argc, char **argv)
 
     subPlane = newSubPlane((unsigned int)sizeOfPlane, (unsigned int)numRows);
 
-    subPlane = populateSubPlane(subPlane, sizeOfPlane, numRows, top, bottom, left, right, world_rank, world_size);
+    populateSubPlane(subPlane, sizeOfPlane, numRows, top, bottom, left, right, world_rank, world_size);
 
     clock_gettime(CLOCK_MONOTONIC, &start);
     iterations = relaxPlane(subPlane, numRows, sizeOfPlane, tolerance, world_rank, world_size);
