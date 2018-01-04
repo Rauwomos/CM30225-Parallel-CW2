@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include <mpi.h>
 
+int asprintf(char **strp, const char *fmt, ...);
 
 long double toSeconds(struct timespec start, struct timespec end) {
     long long difSec = end.tv_sec - start.tv_sec;
@@ -330,8 +331,42 @@ int main(int argc, char **argv)
 
     clock_gettime(CLOCK_MONOTONIC, &end);
 
-    if(debug && !world_rank) {
-        // printPlane(plane, sizeOfPlane);
+    if(debug) {
+        FILE* file;
+        char* file_name;
+
+        asprintf(&file_name, "%d-%d.result", world_size, sizeOfPlane);
+
+        for(int i=0; i<world_size; i++) {
+            if (i == world_rank) {
+                file = fopen(file_name, world_rank == 0 ? "w" : "a");
+                int startingRow = 1;
+                int endingRow = numRows - 1;
+                
+                if(world_rank == 0) {
+                    startingRow = 0;
+                } else if(world_rank == world_size-1) {
+                    endingRow = numRows;
+                }
+                
+                for(int j=startingRow; j<endingRow; j++) {
+                    for(int k=0; k<sizeOfPlane; k++) {
+                        fprintf(file, "%f, ", subPlane[j][k]);
+                    }
+                    fprintf(file, "\n");
+                }
+                fclose(file);
+            }
+            MPI_Barrier(MPI_COMM_WORLD);
+        }
+        if(!world_rank) {
+            file = fopen(file_name, "a");
+            fprintf(file, "\nThreads: %d\n",world_size);
+            fprintf(file, "Size of Pane: %d\n", sizeOfPlane);
+            fprintf(file, "Iterations: %lu\n", iterations);
+            fprintf(file, "Time: %Lfs\n", toSeconds(start, end));
+            fclose(file);
+        }
     }
 
     MPI_Finalize();
