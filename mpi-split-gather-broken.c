@@ -22,11 +22,9 @@ long double toSeconds(struct timespec start, struct timespec end) {
 // TODO propper doc string
 // Generates a 2D array of uninitialised doubles
 double** newPlane(unsigned int n) {
-    double** plane  = ( double** )malloc(n * sizeof(double*));
-    plane[0] = ( double * )malloc(n * n * sizeof(double));
- 
-    for(unsigned int i = 0; i<n; i++)
-        plane[i] = (*plane + n * i);
+    double** plane = ( double** )malloc(n * sizeof(double*));
+    for (unsigned int i = 0; i < n; ++i)
+        plane[i] = ( double* )malloc(n * sizeof(double));
 
     return plane;
 }
@@ -37,8 +35,8 @@ double** newSubPlane(unsigned int n, unsigned int rows) {
     double** plane  = ( double** )malloc(rows * sizeof(double*));
     plane[0] = ( double * )malloc(rows * n * sizeof(double));
 
-    for(unsigned int i = 0; i<rows; i++)
-        plane[i] = (*plane + n * i);
+    for (unsigned int i = 0; i < rows; ++i)
+        plane[i] = ( double* )malloc(n * sizeof(double));
 
     return plane;
 }

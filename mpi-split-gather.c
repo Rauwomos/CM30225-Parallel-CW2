@@ -211,21 +211,6 @@ unsigned long relaxPlane(double** subPlane, int numRows, int sizeOfPlane, double
         // if(iterations == 1)
         //     break;
     } while(!endFlag);
-    
-    // if(!world_rank) {
-    //     printSubPlane(subPlane, sizeOfPlane, numRows);
-    // }
-
-    // Simple way to bring together all the data. With a bit of math I could make this a lot faster.
-    // if(world_rank == 0) {
-    //     for(i=endingRow; i<sizeOfPlane-1; i++) {
-    //         MPI_Recv(&subPlane[i][1], sizeOfInner, MPI_DOUBLE, MPI_ANY_SOURCE, i, MPI_COMM_WORLD, &status);
-    //     }
-    // } else {
-    //     for(i=startingRow; i<endingRow; i++) {
-    //         MPI_Send(&subPlane[i][1], sizeOfInner, MPI_DOUBLE, 0, i, MPI_COMM_WORLD);        
-    //     }
-    // }
 
     return iterations;
 }
