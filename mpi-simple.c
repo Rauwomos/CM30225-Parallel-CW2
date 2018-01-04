@@ -196,6 +196,18 @@ int main(int argc, char **argv)
 
     clock_gettime(CLOCK_MONOTONIC, &start);
 
+    if(!world_rank && iterations%1000==0) {
+        FILE* file;
+
+        char* file_name;
+
+        asprintf(&file_name, "%d-%d.debug", world_size, sizeOfPlane);
+
+        file = fopen(file_name, "a");
+        fprintf(file, "Starting relaxing\n", iterations);
+        fclose(file);
+    }
+
     iterations = relaxPlane(plane, numRows, sizeOfPlane, tolerance, world_rank, world_size);
 
     clock_gettime(CLOCK_MONOTONIC, &end);
