@@ -133,45 +133,64 @@ int main(int argc, char **argv)
     double right = 2;
     double top = 1;
     double bottom = 3;
-    bool debug = false;
 
-    // 2D array that is worked on by each MPI process
-    double** plane;
-
-    // For MPI
     int world_rank, world_size;
 
     // For timing algorithm
     struct timespec start, end;
 
-    // For counting how many iterations needed to smooth the plane
+    double** subPlane;
+
     unsigned long iterations;
 
-    // For parsing flags
     int opt;
+    bool debug = false;
 
     while ((opt = getopt (argc, argv, "u:d:l:r:s:p:h:x")) != -1)
         switch (opt) {
+            case 'u':
+                top = atof(optarg);
+                break;
+            case 'd':
+                bottom = atof(optarg);
+                break;
+            case 'l':
+                left = atof(optarg);
+                break;
+            case 'r':
+                right = atof(optarg);
+                break;
             case 's':
                 sizeOfPlane = (int) atoi(optarg);
+                break;
+            case 'p':
+                tolerance = atof(optarg);
+                break;
+            case 'h':
+                // TODO print help stuff
+                printf("TODO help info\n");
                 break;
             case 'x':
                 debug = true;
                 break;
+            case '?':
+                fprintf (stderr, "Unknown option character `\\x%x'.\n", optopt);
+                return 1;
             default:
                 fprintf (stderr, "Unknown option character `\\x%x'.\n", optopt);
                 return 1;
     }
- 
+
     // Size of the plane must be at least 3x3
     if(sizeOfPlane < 3) {
         fprintf (stderr, "The size of the plane must be greater than 2\n");
         return 1;
     }
-
-// -----------------------------------------------------------------------------
-// Start of MPI Logic6
-// -----------------------------------------------------------------------------
+    // Tolerance must be greater than 0
+    if(tolerance < 0) {
+        fprintf (stderr, "The tolerance must be greater than 0\n");
+        return 1;
+    }
 
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
@@ -182,7 +201,7 @@ int main(int argc, char **argv)
     int rowsPerThreadE = sizeOfInner/world_size;
     int remainingRows = sizeOfInner - world_size * rowsPerThreadE;
 
-    int numRows;
+    int numRows, tempNumRows;
 
     if(world_rank < remainingRows) {
         numRows = rowsPerThreadS + 2;
@@ -190,13 +209,35 @@ int main(int argc, char **argv)
         numRows = rowsPerThreadE + 2;
     }
 
-    plane = newSubPlane((unsigned int)sizeOfPlane, (unsigned int)numRows);
+    int* recvcounts = malloc((unsigned int)world_size * sizeof(int)); 
+    int* displs = malloc((unsigned int)world_size * sizeof(int));
 
-    populateSubPlane(plane, sizeOfPlane, numRows, top, bottom, left, right, world_rank, world_size);
+    // Calculate recvcounts and displs 
+    for(int i=0; i<world_size; i++) {
+
+        if(i < remainingRows) {
+            tempNumRows = rowsPerThreadS;
+        } else {
+            tempNumRows = rowsPerThreadE;
+        }
+
+        recvcounts[i] = tempNumRows * sizeOfPlane;
+        if(i < remainingRows) {
+            displs[i] = (i * rowsPerThreadS) * sizeOfPlane;
+        } else {
+            displs[i] = (i * rowsPerThreadE + remainingRows) * sizeOfPlane;
+        }
+    }
+
+    subPlane = newSubPlane((unsigned int)sizeOfPlane, (unsigned int)numRows);
+
+    subPlane = populateSubPlane(subPlane, sizeOfPlane, numRows, top, bottom, left, right, world_rank, world_size);
 
     clock_gettime(CLOCK_MONOTONIC, &start);
+    iterations = relaxPlane(subPlane, numRows, sizeOfPlane, tolerance, world_rank, world_size);
 
-    iterations = relaxPlane(plane, numRows, sizeOfPlane, tolerance, world_rank, world_size);
+    // Now gather all of the results
+    // MPI_Gatherv(&subPlane[1][0], (numRows-2)*sizeOfPlane, MPI_DOUBLE, &plane[1][0], recvcounts, displs, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
     clock_gettime(CLOCK_MONOTONIC, &end);
 
@@ -220,7 +261,7 @@ int main(int argc, char **argv)
                 
                 for(int j=startingRow; j<endingRow; j++) {
                     for(int k=0; k<sizeOfPlane; k++) {
-                        fprintf(file, "%f, ", plane[j][k]);
+                        fprintf(file, "%f, ", subPlane[j][k]);
                     }
                     fprintf(file, "\n");
                 }
