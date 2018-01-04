@@ -1,8 +1,6 @@
 // -----------------------------------------------------------------------------
-// This version does not use scatter or gather. It is also not very memory 
-// efficient as every program mallocs memory for a full plane. While this is not
-// good practice, it is not an issue for this program as the ammount of memory
-// being used to store a plane is relatively small.
+// In this version each process only mallocs memory that it needs. It uses
+// a gather at the end.
 // -----------------------------------------------------------------------------
 
 #include <stdio.h>
@@ -23,38 +21,80 @@ long double toSeconds(struct timespec start, struct timespec end) {
 
 // TODO propper doc string
 // Generates a 2D array of uninitialised doubles
-double** newPlane(int n) {
-    double** plane = ( double** )malloc(((unsigned int) n) * sizeof(double*));
-    for (int i = 0; i < n; ++i)
-        plane[i] = ( double* )malloc(((unsigned int) n) * sizeof(double));
+double** newPlane(unsigned int n) {
+    double** plane  = ( double** )malloc(n * sizeof(double*));
+    plane[0] = ( double * )malloc(n * n * sizeof(double));
+ 
+    for(unsigned int i = 0; i<n; i++)
+        plane[i] = (*plane + n * i);
+
+    return plane;
+}
+
+// TODO propper doc string
+// Generates a 2D array of uninitialised doubles for a subsection of the plane
+double** newSubPlane(unsigned int n, unsigned int rows) {
+    double** plane  = ( double** )malloc(rows * sizeof(double*));
+    plane[0] = ( double * )malloc(rows * n * sizeof(double));
+
+    for(unsigned int i = 0; i<rows; i++)
+        plane[i] = (*plane + n * i);
+
     return plane;
 }
 
 // TODO propper doc string
 // Populates the plane's wallswith the values provided, and sets the centre parts to zero. If debug is true then it prints outs the array
-double** populatePlane(double** plane, int sizeOfPlane, double top, double bottom, double farLeft, double farRight)
+double** populatePlane(double** plane, int sizeOfPlane, double left, double right, double top, double bottom)
 {   
     // Generate 2d array of doubles
-    for(int j=0; j<sizeOfPlane; j++) {
-        for(int i=0; i<sizeOfPlane; i++) {
+    for(int i=0; i<sizeOfPlane; i++) {
+        for(int j=0; j<sizeOfPlane; j++) {
             if(i == 0) {
-                // Left
-                plane[i][j] = farLeft;
-            } else if(j == 0) {
                 // Top
                 plane[i][j] = top;
+            } else if(j == 0) {
+                // Left
+                plane[i][j] = left;
             } else if(i == sizeOfPlane-1) {
-                // Right
-                plane[i][j] = farRight;
-            } else if(j == sizeOfPlane-1) {
                 // Bottom
                 plane[i][j] = bottom;
+            } else if(j == sizeOfPlane-1) {
+                // Right
+                plane[i][j] = right;
             } else {
                 plane[i][j] = 0;
             }
         }
     }
     return plane;
+}
+
+// TODO propper doc string
+// Populates the plane's wallswith the values provided, and sets the centre parts to zero. If debug is true then it prints outs the array
+double** populateSubPlane(double** subPlane, int sizeOfPlane, int numRows, double top, double bottom, double farLeft, double farRight, int world_rank, int world_size)
+{   
+    // Generate 2d array of doubles
+    for(int i=0; i<numRows; i++) {
+        for(int j=0; j<sizeOfPlane; j++) {
+            if(j == 0) {
+                // Left
+                subPlane[i][j] = farLeft;
+            } else if(i == 0 && world_rank == 0) {
+                // Top
+                subPlane[i][j] = top;
+            } else if(j == sizeOfPlane-1) {
+                // Right
+                subPlane[i][j] = farRight;
+            } else if(i == numRows-1 && world_rank == world_size-1) {
+                // Bottom
+                subPlane[i][j] = bottom;
+            } else {
+                subPlane[i][j] = 0;
+            }
+        }
+    }
+    return subPlane;
 }
 
 void printPlane(double** plane, int sizeOfPlane) {
@@ -67,10 +107,21 @@ void printPlane(double** plane, int sizeOfPlane) {
     printf("\n");
 }
 
+void printSubPlane(double** plane, int sizeOfPlane, int numRows) {
+    for(int x=0; x<numRows; x++) {
+        for(int y=0; y<sizeOfPlane; y++) {
+            printf("%f, ", plane[x][y]);
+        }
+        printf("\n");
+    }
+    printf("\n");
+}
+
 // TODO propper doc string
 // Runs the relaxation technique on the 2d array of doubles that it is passed.
-unsigned long relaxPlane(double** plane, int sizeOfPlane, double tolerance, int world_rank, int world_size)
+unsigned long relaxPlane(double** subPlane, int numRows, int sizeOfPlane, double tolerance, int world_rank, int world_size)
 {
+
     unsigned long iterations = 0;
     int i, j, precisionFlag, endFlag;
     double pVal;
@@ -81,15 +132,20 @@ unsigned long relaxPlane(double** plane, int sizeOfPlane, double tolerance, int 
     int rowsPerThreadE = sizeOfInner/world_size;
     int remainingRows = sizeOfInner - world_size * rowsPerThreadE;
 
-    int startingRow, endingRow;
+    int sendBot, recBot;
+
+    sendBot = numRows-2;
+    recBot = numRows-1;
+
+    int startingRow;
 
     if(world_rank < remainingRows) {
         startingRow = world_rank * rowsPerThreadS + 1;
-        endingRow = startingRow + rowsPerThreadS;
     } else {
         startingRow = world_rank * rowsPerThreadE + remainingRows + 1;
-        endingRow = startingRow + rowsPerThreadE;
     }
+
+    MPI_Request myRequest1, myRequest2, myRequest3, myRequest4;
 
     // printf("Process: %d SE: %d, %d\n", world_rank, startingRow, endingRow);
 
@@ -97,11 +153,11 @@ unsigned long relaxPlane(double** plane, int sizeOfPlane, double tolerance, int 
         precisionFlag = true;
         iterations++;
 
-        for(i=startingRow; i<endingRow; i++) {
-            for(j=(i%2)+1; j<sizeOfPlane-1; j+=2) {
-                pVal = plane[i][j];
-                plane[i][j] = (plane[i-1][j] + plane[i+1][j] + plane[i][j-1] + plane[i][j+1])/4;
-                if(precisionFlag && tolerance < fabs(plane[i][j]-pVal)) {
+        for(i=1; i<recBot; i++) {
+            for(j=((i+startingRow+1)%2)+1; j<sizeOfPlane-1; j+=2) {
+                pVal = subPlane[i][j];
+                subPlane[i][j] = (subPlane[i-1][j] + subPlane[i+1][j] + subPlane[i][j-1] + subPlane[i][j+1])/4;
+                if(precisionFlag && tolerance < fabs(subPlane[i][j]-pVal)) {
                     precisionFlag = false;
                 }
             }
@@ -110,25 +166,25 @@ unsigned long relaxPlane(double** plane, int sizeOfPlane, double tolerance, int 
         // Update process that needs the new data
         if(world_rank==0) {
             // Only send data down
-            MPI_Send(&plane[endingRow-1][1], sizeOfInner, MPI_DOUBLE, 1, 0, MPI_COMM_WORLD);
-            MPI_Recv(&plane[endingRow][1], sizeOfInner, MPI_DOUBLE, 1, 0, MPI_COMM_WORLD, &status);
+            MPI_Isend(&subPlane[sendBot][1], sizeOfInner, MPI_DOUBLE, 1, 0, MPI_COMM_WORLD, &myRequest1);
+            MPI_Recv(&subPlane[recBot][1], sizeOfInner, MPI_DOUBLE, 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         } else if(world_rank==world_size-1) {
             // Only send data up
-            MPI_Send(&plane[startingRow][1], sizeOfInner, MPI_DOUBLE, world_size-2, 0, MPI_COMM_WORLD);
-            MPI_Recv(&plane[startingRow-1][1], sizeOfInner, MPI_DOUBLE, world_size-2, 0, MPI_COMM_WORLD, &status);
+            MPI_Isend(&subPlane[1][1], sizeOfInner, MPI_DOUBLE, world_size-2, 0, MPI_COMM_WORLD, &myRequest1);
+            MPI_Recv(&subPlane[0][1], sizeOfInner, MPI_DOUBLE, world_size-2, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         } else {
             // Send data up and down
-            MPI_Send(&plane[startingRow][1], sizeOfInner, MPI_DOUBLE, world_rank-1, 0, MPI_COMM_WORLD);
-            MPI_Send(&plane[endingRow-1][1], sizeOfInner, MPI_DOUBLE, world_rank+1, 0, MPI_COMM_WORLD);
-            MPI_Recv(&plane[startingRow-1][1], sizeOfInner, MPI_DOUBLE, world_rank-1, 0, MPI_COMM_WORLD, &status);
-            MPI_Recv(&plane[endingRow][1], sizeOfInner, MPI_DOUBLE, world_rank+1, 0, MPI_COMM_WORLD, &status);
+            MPI_Isend(&subPlane[1][1], sizeOfInner, MPI_DOUBLE, world_rank-1, 0, MPI_COMM_WORLD, &myRequest1);
+            MPI_Isend(&subPlane[sendBot][1], sizeOfInner, MPI_DOUBLE, world_rank+1, 0, MPI_COMM_WORLD, &myRequest2);
+            MPI_Recv(&subPlane[0][1], sizeOfInner, MPI_DOUBLE, world_rank-1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            MPI_Recv(&subPlane[recBot][1], sizeOfInner, MPI_DOUBLE, world_rank+1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         }
 
-        for(i=startingRow; i<endingRow; i++) {
-            for(j=((i+1)%2)+1; j<sizeOfPlane-1; j+=2) {
-                pVal = plane[i][j];
-                plane[i][j] = (plane[i-1][j] + plane[i+1][j] + plane[i][j-1] + plane[i][j+1])/4;
-                if(precisionFlag && tolerance < fabs(plane[i][j]-pVal)) {
+        for(i=1; i<recBot; i++) {
+            for(j=((i+startingRow)%2)+1; j<sizeOfPlane-1; j+=2) {
+                pVal = subPlane[i][j];
+                subPlane[i][j] = (subPlane[i-1][j] + subPlane[i+1][j] + subPlane[i][j-1] + subPlane[i][j+1])/4;
+                if(precisionFlag && tolerance < fabs(subPlane[i][j]-pVal)) {
                     precisionFlag = false;
                 }
             }
@@ -137,34 +193,23 @@ unsigned long relaxPlane(double** plane, int sizeOfPlane, double tolerance, int 
         // Update process that needs the new data
         if(world_rank==0) {
             // Only send data down
-            MPI_Send(&plane[endingRow-1][1], sizeOfInner, MPI_DOUBLE, 1, 0, MPI_COMM_WORLD);
-            MPI_Recv(&plane[endingRow][1], sizeOfInner, MPI_DOUBLE, 1, 0, MPI_COMM_WORLD, &status);
+            MPI_Isend(&subPlane[sendBot][1], sizeOfInner, MPI_DOUBLE, 1, 0, MPI_COMM_WORLD, &myRequest1);
+            MPI_Recv(&subPlane[recBot][1], sizeOfInner, MPI_DOUBLE, 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         } else if(world_rank==world_size-1) {
             // Only send data up
-            MPI_Send(&plane[startingRow][1], sizeOfInner, MPI_DOUBLE, world_size-2, 0, MPI_COMM_WORLD);
-            MPI_Recv(&plane[startingRow-1][1], sizeOfInner, MPI_DOUBLE, world_size-2, 0, MPI_COMM_WORLD, &status);
+            MPI_Isend(&subPlane[1][1], sizeOfInner, MPI_DOUBLE, world_size-2, 0, MPI_COMM_WORLD, &myRequest1);
+            MPI_Recv(&subPlane[0][1], sizeOfInner, MPI_DOUBLE, world_size-2, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         } else {
             // Send data up and down
-            MPI_Send(&plane[startingRow][1], sizeOfInner, MPI_DOUBLE, world_rank-1, 0, MPI_COMM_WORLD);
-            MPI_Send(&plane[endingRow-1][1], sizeOfInner, MPI_DOUBLE, world_rank+1, 0, MPI_COMM_WORLD);
-            MPI_Recv(&plane[startingRow-1][1], sizeOfInner, MPI_DOUBLE, world_rank-1, 0, MPI_COMM_WORLD, &status);
-            MPI_Recv(&plane[endingRow][1], sizeOfInner, MPI_DOUBLE, world_rank+1, 0, MPI_COMM_WORLD, &status);
+            MPI_Isend(&subPlane[1][1], sizeOfInner, MPI_DOUBLE, world_rank-1, 0, MPI_COMM_WORLD, &myRequest1);
+            MPI_Isend(&subPlane[sendBot][1], sizeOfInner, MPI_DOUBLE, world_rank+1, 0, MPI_COMM_WORLD, &myRequest2);
+            MPI_Recv(&subPlane[0][1], sizeOfInner, MPI_DOUBLE, world_rank-1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            MPI_Recv(&subPlane[recBot][1], sizeOfInner, MPI_DOUBLE, world_rank+1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         }
 
         MPI_Allreduce(&precisionFlag, &endFlag, 1, MPI_INT, MPI_LAND, MPI_COMM_WORLD);
-
+    
     } while(!endFlag);
-
-    // Simple way to bring together all the data. With a bit of math I could make this a lot faster.
-    if(world_rank == 0) {
-        for(i=endingRow; i<sizeOfPlane-1; i++) {
-            MPI_Recv(&plane[i][1], sizeOfInner, MPI_DOUBLE, MPI_ANY_SOURCE, i, MPI_COMM_WORLD, &status);
-        }
-    } else {
-        for(i=startingRow; i<endingRow; i++) {
-            MPI_Send(&plane[i][1], sizeOfInner, MPI_DOUBLE, 0, i, MPI_COMM_WORLD);        
-        }
-    }
 
     return iterations;
 }
@@ -183,7 +228,7 @@ int main(int argc, char **argv)
     // For timing algorithm
     struct timespec start, end;
 
-    double** plane;
+    double** subPlane;
 
     unsigned long iterations;
 
@@ -236,20 +281,58 @@ int main(int argc, char **argv)
         return 1;
     }
 
-
-    plane = newPlane(sizeOfPlane);
-    plane = populatePlane(plane, sizeOfPlane, left, right, top, bottom);
-
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
+    int sizeOfInner = sizeOfPlane-2;
+    int rowsPerThreadS = sizeOfInner/world_size+1;
+    int rowsPerThreadE = sizeOfInner/world_size;
+    int remainingRows = sizeOfInner - world_size * rowsPerThreadE;
+
+    int numRows, tempNumRows;
+
+    if(world_rank < remainingRows) {
+        numRows = rowsPerThreadS + 2;
+    } else {
+        numRows = rowsPerThreadE + 2;
+    }
+
+    int* recvcounts = malloc((unsigned int)world_size * sizeof(int)); 
+    int* displs = malloc((unsigned int)world_size * sizeof(int));
+
+    // Calculate recvcounts and displs 
+    for(int i=0; i<world_size; i++) {
+
+        if(i < remainingRows) {
+            tempNumRows = rowsPerThreadS;
+        } else {
+            tempNumRows = rowsPerThreadE;
+        }
+
+        recvcounts[i] = tempNumRows * sizeOfPlane;
+        if(i < remainingRows) {
+            displs[i] = (i * rowsPerThreadS) * sizeOfPlane;
+        } else {
+            displs[i] = (i * rowsPerThreadE + remainingRows) * sizeOfPlane;
+        }
+    }
+
+    subPlane = newSubPlane((unsigned int)sizeOfPlane, (unsigned int)numRows);
+
+    subPlane = populateSubPlane(subPlane, sizeOfPlane, numRows, top, bottom, left, right, world_rank, world_size);
+
     clock_gettime(CLOCK_MONOTONIC, &start);
-    iterations = relaxPlane(plane, sizeOfPlane, tolerance, world_rank, world_size);
+    iterations = relaxPlane(subPlane, numRows, sizeOfPlane, tolerance, world_rank, world_size);
+
+    // Now gather all of the results
+    // MPI_Gatherv(&subPlane[1][0], (numRows-2)*sizeOfPlane, MPI_DOUBLE, &plane[1][0], recvcounts, displs, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
     clock_gettime(CLOCK_MONOTONIC, &end);
 
-    if(debug && !world_rank)
-        printPlane(plane, sizeOfPlane);
+    if(debug && !world_rank) {
+        // printPlane(plane, sizeOfPlane);
+    }
 
     MPI_Finalize();
 

@@ -75,6 +75,7 @@ unsigned long relaxPlane(double** plane, int numRows, int sizeOfPlane, double to
     int sizeOfInner = sizeOfPlane-2;
     int sendBot = numRows-2; 
     int recBot = numRows-1;
+    MPI_Request myRequest1, myRequest2, myRequest3, myRequest4;
 
     do {
         endFlag = true;
@@ -89,36 +90,47 @@ unsigned long relaxPlane(double** plane, int numRows, int sizeOfPlane, double to
                 }
             }
         }
-        
+
         // Update process that needs the new data
         if(world_rank==0) {
+            // printf("Process: %d about to send\n" ,world_rank);
             // Only send data down
-            MPI_Send(&plane[sendBot][1], sizeOfInner, MPI_DOUBLE, 1, 0, MPI_COMM_WORLD);
+            MPI_Isend(&plane[sendBot][1], sizeOfInner, MPI_DOUBLE, 1, 0, MPI_COMM_WORLD, &myRequest1);
+            // printf("Process: %d finished sending\n" ,world_rank);
             MPI_Recv(&plane[recBot][1], sizeOfInner, MPI_DOUBLE, 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            // printf("Process: %d finished communicating\n" ,world_rank);
         } else if(world_rank==world_size-1) {
+            // printf("Process: %d about to send\n" ,world_rank);
             // Only send data up
-            MPI_Send(&plane[1][1], sizeOfInner, MPI_DOUBLE, world_size-2, 0, MPI_COMM_WORLD);
+            MPI_Isend(&plane[1][1], sizeOfInner, MPI_DOUBLE, world_size-2, 0, MPI_COMM_WORLD, &myRequest1);
+            // printf("Process: %d finished sending\n" ,world_rank);
             MPI_Recv(&plane[0][1], sizeOfInner, MPI_DOUBLE, world_size-2, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            // printf("Process: %d finished communicating\n" ,world_rank);
         } else {
+            // printf("Process: %d about to send\n" ,world_rank);
             // Send data up and down
-            MPI_Send(&plane[1][1], sizeOfInner, MPI_DOUBLE, world_rank-1, 0, MPI_COMM_WORLD);
-            MPI_Send(&plane[sendBot][1], sizeOfInner, MPI_DOUBLE, world_rank+1, 0, MPI_COMM_WORLD);
+            MPI_Isend(&plane[1][1], sizeOfInner, MPI_DOUBLE, world_rank-1, 0, MPI_COMM_WORLD, &myRequest1);
+            // printf("Process: %d finished send 1\n" ,world_rank);
+            MPI_Isend(&plane[sendBot][1], sizeOfInner, MPI_DOUBLE, world_rank+1, 0, MPI_COMM_WORLD, &myRequest2);
+            // printf("Process: %d finished sending\n" ,world_rank);
             MPI_Recv(&plane[0][1], sizeOfInner, MPI_DOUBLE, world_rank-1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             MPI_Recv(&plane[recBot][1], sizeOfInner, MPI_DOUBLE, world_rank+1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            // printf("Process: %d finished communicating\n" ,world_rank);
         }
 
         MPI_Allreduce(MPI_IN_PLACE, &endFlag, 1, MPI_INT, MPI_LAND, MPI_COMM_WORLD);
     
         if(!world_rank && iterations%1000==0) {
-            FILE* file;
+            // FILE* file;
 
-            char* file_name;
+            // char* file_name;
 
-            asprintf(&file_name, "%d-%d.debug", world_size, sizeOfPlane);
+            // asprintf(&file_name, "%d-%d.debug", world_size, sizeOfPlane);
 
-            file = fopen(file_name, "a");
-            fprintf(file, "Iterations: %lu\n", iterations);
-            fclose(file);
+            // file = fopen(file_name, "a");
+            // fprintf(file, "Iterations: %lu\n", iterations);
+            printf("Iterations: %lu\n", iterations);
+            // fclose(file);
         }
     } while(!endFlag);
 
@@ -195,18 +207,6 @@ int main(int argc, char **argv)
     populateSubPlane(plane, sizeOfPlane, numRows, top, bottom, left, right, world_rank, world_size);
 
     clock_gettime(CLOCK_MONOTONIC, &start);
-
-    if(!world_rank && iterations%1000==0) {
-        FILE* file;
-
-        char* file_name;
-
-        asprintf(&file_name, "%d-%d.debug", world_size, sizeOfPlane);
-
-        file = fopen(file_name, "a");
-        fprintf(file, "Starting relaxing\n", iterations);
-        fclose(file);
-    }
 
     iterations = relaxPlane(plane, numRows, sizeOfPlane, tolerance, world_rank, world_size);
 
