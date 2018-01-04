@@ -109,6 +109,17 @@ unsigned long relaxPlane(double** plane, int numRows, int sizeOfPlane, double to
 
         MPI_Allreduce(MPI_IN_PLACE, &endFlag, 1, MPI_INT, MPI_LAND, MPI_COMM_WORLD);
     
+        if(!world_rank && iterations%1000==0) {
+            FILE* file;
+
+            char* file_name;
+
+            asprintf(&file_name, "%d-%d.debug", world_size, sizeOfPlane);
+
+            file = fopen(file_name, "a");
+            fprintf(file, "Iterations: %lu\n", iterations);
+            fclose(file);
+        }
     } while(!endFlag);
 
     return iterations;
