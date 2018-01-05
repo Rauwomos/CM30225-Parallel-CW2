@@ -155,10 +155,14 @@ unsigned long relaxPlane(double** subPlane, int numRows, int sizeOfPlane, double
 
         for(i=1; i<recBot; i++) {
             for(j=((i+startingRow+1)%2)+1; j<sizeOfPlane-1; j+=2) {
-                pVal = subPlane[i][j];
-                subPlane[i][j] = (subPlane[i-1][j] + subPlane[i+1][j] + subPlane[i][j-1] + subPlane[i][j+1])/4;
-                if(endFlag && tolerance < fabs(subPlane[i][j]-pVal)) {
-                    endFlag = false;
+                if(endFlag) {
+                    pVal = subPlane[i][j];
+                    subPlane[i][j] = (subPlane[i-1][j] + subPlane[i+1][j] + subPlane[i][j-1] + subPlane[i][j+1])/4;
+                    if(tolerance < fabs(subPlane[i][j]-pVal)) {
+                        endFlag = false;
+                    }
+                } else {
+                    subPlane[i][j] = (subPlane[i-1][j] + subPlane[i+1][j] + subPlane[i][j-1] + subPlane[i][j+1])/4;
                 }
             }
         }
@@ -182,10 +186,14 @@ unsigned long relaxPlane(double** subPlane, int numRows, int sizeOfPlane, double
 
         for(i=1; i<recBot; i++) {
             for(j=((i+startingRow)%2)+1; j<sizeOfPlane-1; j+=2) {
-                pVal = subPlane[i][j];
-                subPlane[i][j] = (subPlane[i-1][j] + subPlane[i+1][j] + subPlane[i][j-1] + subPlane[i][j+1])/4;
-                if(endFlag && tolerance < fabs(subPlane[i][j]-pVal)) {
-                    endFlag = false;
+                if(endFlag) {
+                    pVal = subPlane[i][j];
+                    subPlane[i][j] = (subPlane[i-1][j] + subPlane[i+1][j] + subPlane[i][j-1] + subPlane[i][j+1])/4;
+                    if(tolerance < fabs(subPlane[i][j]-pVal)) {
+                        endFlag = false;
+                    }
+                } else {
+                    subPlane[i][j] = (subPlane[i-1][j] + subPlane[i+1][j] + subPlane[i][j-1] + subPlane[i][j+1])/4;
                 }
             }
         }

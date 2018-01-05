@@ -146,19 +146,38 @@ unsigned long relaxPlane(double** subPlane, int numRows, int sizeOfPlane, double
         startingRow = world_rank * rowsPerThreadE + remainingRows + 1;
     }
 
+    int midX = sizeOfPlane/2;
+    int midY = world_rank < world_size/2 ? sendBot : 1;
 
-    // printf("Process: %d SE: %d, %d\n", world_rank, startingRow, endingRow);
+    // printf("Process: %d XY: %d, %d\n", world_rank, midX, midY);
 
     do {
         endFlag = true;
         iterations++;
 
-        for(i=1; i<recBot; i++) {
-            for(j=((i+startingRow+1)%2)+1; j<sizeOfPlane-1; j+=2) {
-                pVal = subPlane[i][j];
-                subPlane[i][j] = (subPlane[i-1][j] + subPlane[i+1][j] + subPlane[i][j-1] + subPlane[i][j+1])/4;
-                if(endFlag && tolerance < fabs(subPlane[i][j]-pVal)) {
-                    endFlag = false;
+        // if(tolerance < fabs(((subPlane[midY-1][midX] + subPlane[midY+1][midX] + subPlane[midY][midX-1] + subPlane[midY][midX+1])/4)-subPlane[midY][midX])|| subPlane[midY][midX] == 0) {
+        if(tolerance < fabs(((subPlane[midY-1][midX] + subPlane[midY+1][midX] + subPlane[midY][midX-1] + subPlane[midY][midX+1])/4)-subPlane[midY][midX])) {
+            // if(subPlane[midY][midX] == 0)
+            //     printf("Pro: %d Skip 0 Iter: %lu\n", world_rank, iterations);
+            endFlag = false;
+        }
+
+
+        if(endFlag) {
+            for(i=1; i<recBot; i++) {
+                for(j=((i+startingRow+1)%2)+1; j<sizeOfPlane-1; j+=2) {
+                    pVal = subPlane[i][j];
+                    subPlane[i][j] = (subPlane[i-1][j] + subPlane[i+1][j] + subPlane[i][j-1] + subPlane[i][j+1])/4;
+                    if(endFlag && tolerance < fabs(subPlane[i][j]-pVal)) {
+                        endFlag = false;
+                    }
+                }
+            }
+        } else {
+            // printf("Pro: %d Skip 1 Iter: %lu\n", world_rank, iterations);
+            for(i=1; i<recBot; i++) {
+                for(j=((i+startingRow+1)%2)+1; j<sizeOfPlane-1; j+=2) {
+                    subPlane[i][j] = (subPlane[i-1][j] + subPlane[i+1][j] + subPlane[i][j-1] + subPlane[i][j+1])/4;
                 }
             }
         }
@@ -180,12 +199,21 @@ unsigned long relaxPlane(double** subPlane, int numRows, int sizeOfPlane, double
             MPI_Recv(&subPlane[recBot][1], sizeOfInner, MPI_DOUBLE, world_rank+1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         }
 
-        for(i=1; i<recBot; i++) {
-            for(j=((i+startingRow)%2)+1; j<sizeOfPlane-1; j+=2) {
-                pVal = subPlane[i][j];
-                subPlane[i][j] = (subPlane[i-1][j] + subPlane[i+1][j] + subPlane[i][j-1] + subPlane[i][j+1])/4;
-                if(endFlag && tolerance < fabs(subPlane[i][j]-pVal)) {
-                    endFlag = false;
+        if(endFlag) {
+            for(i=1; i<recBot; i++) {
+                for(j=((i+startingRow)%2)+1; j<sizeOfPlane-1; j+=2) {
+                    pVal = subPlane[i][j];
+                    subPlane[i][j] = (subPlane[i-1][j] + subPlane[i+1][j] + subPlane[i][j-1] + subPlane[i][j+1])/4;
+                    if(endFlag && tolerance < fabs(subPlane[i][j]-pVal)) {
+                        endFlag = false;
+                    }
+                }
+            }
+        } else {
+            // printf("Pro: %d Skip 2 Iter: %lu\n", world_rank, iterations);
+            for(i=1; i<recBot; i++) {
+                for(j=((i+startingRow)%2)+1; j<sizeOfPlane-1; j+=2) {
+                    subPlane[i][j] = (subPlane[i-1][j] + subPlane[i+1][j] + subPlane[i][j-1] + subPlane[i][j+1])/4;
                 }
             }
         }
@@ -324,9 +352,6 @@ int main(int argc, char **argv)
 
     clock_gettime(CLOCK_MONOTONIC, &start);
     iterations = relaxPlane(subPlane, numRows, sizeOfPlane, tolerance, world_rank, world_size);
-
-    // Now gather all of the results
-    // MPI_Gatherv(&subPlane[1][0], (numRows-2)*sizeOfPlane, MPI_DOUBLE, &plane[1][0], recvcounts, displs, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
     clock_gettime(CLOCK_MONOTONIC, &end);
 

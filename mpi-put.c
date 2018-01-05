@@ -127,6 +127,8 @@ unsigned long relaxPlane(double** subPlane, int numRows, int sizeOfPlane, double
     int i, j, endFlag;
     double pVal;
     MPI_Request myRequest1, myRequest2, myRequest3, myRequest4;
+    MPI_Win win;
+
 
     int sizeOfInner = sizeOfPlane-2;
     int rowsPerThreadS = sizeOfInner/world_size+1;
@@ -147,7 +149,10 @@ unsigned long relaxPlane(double** subPlane, int numRows, int sizeOfPlane, double
     }
 
 
-    // printf("Process: %d SE: %d, %d\n", world_rank, startingRow, endingRow);
+
+    MPI_Win_create(&endFlag, sizeof(int), sizeof(int), MPI_INFO_NULL, MPI_COMM_WORLD, &win);
+
+    MPI_Win_fence(0, win);
 
     do {
         endFlag = true;
@@ -159,6 +164,9 @@ unsigned long relaxPlane(double** subPlane, int numRows, int sizeOfPlane, double
                 subPlane[i][j] = (subPlane[i-1][j] + subPlane[i+1][j] + subPlane[i][j-1] + subPlane[i][j+1])/4;
                 if(endFlag && tolerance < fabs(subPlane[i][j]-pVal)) {
                     endFlag = false;
+                    for(int i=0; i<world_size; i++) {
+                        MPI_Put(&endFlag, 1, MPI_INT, i, 0, 1, MPI_INT, win);
+                    }
                 }
             }
         }
@@ -186,6 +194,9 @@ unsigned long relaxPlane(double** subPlane, int numRows, int sizeOfPlane, double
                 subPlane[i][j] = (subPlane[i-1][j] + subPlane[i+1][j] + subPlane[i][j-1] + subPlane[i][j+1])/4;
                 if(endFlag && tolerance < fabs(subPlane[i][j]-pVal)) {
                     endFlag = false;
+                    for(int i=0; i<world_size; i++) {
+                        MPI_Put(&endFlag, 1, MPI_INT, i, 0, 1, MPI_INT, win);
+                    }
                 }
             }
         }
@@ -210,6 +221,9 @@ unsigned long relaxPlane(double** subPlane, int numRows, int sizeOfPlane, double
         MPI_Allreduce(MPI_IN_PLACE, &endFlag, 1, MPI_INT, MPI_LAND, MPI_COMM_WORLD);
     
     } while(!endFlag);
+
+    MPI_Win_fence(0, win);
+    MPI_Win_free(&win);
 
     return iterations;
 }
