@@ -21,18 +21,6 @@ long double toSeconds(struct timespec start, struct timespec end) {
 }
 
 // TODO propper doc string
-// Generates a 2D array of uninitialised doubles
-double** newPlane(unsigned int n) {
-    double** plane  = ( double** )malloc(n * sizeof(double*));
-    plane[0] = ( double * )malloc(n * n * sizeof(double));
- 
-    for(unsigned int i = 0; i<n; i++)
-        plane[i] = (*plane + n * i);
-
-    return plane;
-}
-
-// TODO propper doc string
 // Generates a 2D array of uninitialised doubles for a subsection of the plane
 double** newSubPlane(unsigned int n, unsigned int rows) {
     double** plane  = ( double** )malloc(rows * sizeof(double*));
@@ -41,33 +29,6 @@ double** newSubPlane(unsigned int n, unsigned int rows) {
     for(unsigned int i = 0; i<rows; i++)
         plane[i] = (*plane + n * i);
 
-    return plane;
-}
-
-// TODO propper doc string
-// Populates the plane's wallswith the values provided, and sets the centre parts to zero. If debug is true then it prints outs the array
-double** populatePlane(double** plane, int sizeOfPlane, double left, double right, double top, double bottom)
-{   
-    // Generate 2d array of doubles
-    for(int i=0; i<sizeOfPlane; i++) {
-        for(int j=0; j<sizeOfPlane; j++) {
-            if(i == 0) {
-                // Top
-                plane[i][j] = top;
-            } else if(j == 0) {
-                // Left
-                plane[i][j] = left;
-            } else if(i == sizeOfPlane-1) {
-                // Bottom
-                plane[i][j] = bottom;
-            } else if(j == sizeOfPlane-1) {
-                // Right
-                plane[i][j] = right;
-            } else {
-                plane[i][j] = 0;
-            }
-        }
-    }
     return plane;
 }
 
@@ -96,16 +57,6 @@ double** populateSubPlane(double** subPlane, int sizeOfPlane, int numRows, doubl
         }
     }
     return subPlane;
-}
-
-void printPlane(double** plane, int sizeOfPlane) {
-    for(int x=0; x<sizeOfPlane; x++) {
-        for(int y=0; y<sizeOfPlane; y++) {
-            printf("%f, ", plane[x][y]);
-        }
-        printf("\n");
-    }
-    printf("\n");
 }
 
 void printSubPlane(double** plane, int sizeOfPlane, int numRows) {
@@ -145,9 +96,6 @@ unsigned long relaxPlane(double** subPlane, int numRows, int sizeOfPlane, double
     } else {
         startingRow = world_rank * rowsPerThreadE + remainingRows + 1;
     }
-
-
-    // printf("Process: %d SE: %d, %d\n", world_rank, startingRow, endingRow);
 
     do {
         endFlag = true;
