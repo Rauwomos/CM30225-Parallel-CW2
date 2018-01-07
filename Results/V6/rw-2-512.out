@@ -1,17 +1,17 @@
-Threads: 4
-Size of Pane: 3072
-Iterations: 12675
-Time: 129.023845s
+Threads: 2
+Size of Pane: 512
+Iterations: 12781
+Time: 18.426774s
 
 ########################################################################
 ----------------------! Balena Job Details !----------------------------
 
-JobID          : 1270684
+JobID          : 1270763
 No. of nodes   : 1
 No. of CPUs    : 16
 Timelimit      : 00:15:00
-Elapsed time   : 00:02:10
-Nodelist       : node-sw-034
+Elapsed time   : 00:00:20
+Nodelist       : node-sw-035
 
 ########################################################################
 

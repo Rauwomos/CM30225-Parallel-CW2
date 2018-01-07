@@ -1,17 +1,14 @@
-Threads: 4
-Size of Pane: 3072
-Iterations: 12675
-Time: 129.023845s
+slurmstepd: error: *** JOB 1270741 ON node-sw-162 CANCELLED AT 2018-01-06T23:42:04 DUE TO TIME LIMIT ***
 
 ########################################################################
 ----------------------! Balena Job Details !----------------------------
 
-JobID          : 1270684
+JobID          : 1270741
 No. of nodes   : 1
 No. of CPUs    : 16
 Timelimit      : 00:15:00
-Elapsed time   : 00:02:10
-Nodelist       : node-sw-034
+Elapsed time   : 00:15:26
+Nodelist       : node-sw-162
 
 ########################################################################
 

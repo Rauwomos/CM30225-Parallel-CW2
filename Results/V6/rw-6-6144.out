@@ -1,17 +1,15 @@
-Threads: 4
-Size of Pane: 3072
-Iterations: 12675
-Time: 129.023845s
+slurmstepd: error: *** JOB 1270868 ON node-sw-057 CANCELLED AT 2018-01-07T00:47:29 DUE TO TIME LIMIT ***
+mpirun: Forwarding signal 18 to job
 
 ########################################################################
 ----------------------! Balena Job Details !----------------------------
 
-JobID          : 1270684
+JobID          : 1270868
 No. of nodes   : 1
 No. of CPUs    : 16
 Timelimit      : 00:15:00
-Elapsed time   : 00:02:10
-Nodelist       : node-sw-034
+Elapsed time   : 00:15:28
+Nodelist       : node-sw-057
 
 ########################################################################
 
