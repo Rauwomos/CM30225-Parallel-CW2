@@ -81,41 +81,34 @@ unsigned long relaxPlane(double** plane, int numRows, int sizeOfPlane, double to
         endFlag = true;
         iterations++;
 
-        for(i=1; i<recBot; i++) {
-            for(j=1; j<sizeOfPlane-1; j++) {
-                pVal = plane[i][j];
-                plane[i][j] = (plane[i-1][j] + plane[i+1][j] + plane[i][j-1] + plane[i][j+1])/4;
-                if(endFlag && tolerance < fabs(plane[i][j]-pVal)) {
-                    endFlag = false;
-                }
+    for(i=1; i<recBot; i++) {
+        for(j=1; j<sizeOfPlane-1; j++) {
+            pVal = plane[i][j];
+            plane[i][j] = (plane[i-1][j] + plane[i+1][j] + plane[i][j-1] + plane[i][j+1])/4;
+            if(endFlag && tolerance < fabs(plane[i][j]-pVal)) {
+                endFlag = false;
             }
         }
+    }
 
-        // Update process that needs the new data
+        // Send and Recieve data depending on the world_rank
         if(world_rank==0) {
-            // printf("Process: %d about to send\n" ,world_rank);
-            // Only send data down
+            // Only send data down to process with world_rank 1
             MPI_Isend(&plane[sendBot][1], sizeOfInner, MPI_DOUBLE, 1, 0, MPI_COMM_WORLD, &myRequest1);
-            // printf("Process: %d finished sending\n" ,world_rank);
             MPI_Recv(&plane[recBot][1], sizeOfInner, MPI_DOUBLE, 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            // printf("Process: %d finished communicating\n" ,world_rank);
         } else if(world_rank==world_size-1) {
-            // printf("Process: %d about to send\n" ,world_rank);
-            // Only send data up
-            MPI_Isend(&plane[1][1], sizeOfInner, MPI_DOUBLE, world_size-2, 0, MPI_COMM_WORLD, &myRequest1);
-            // printf("Process: %d finished sending\n" ,world_rank);
-            MPI_Recv(&plane[0][1], sizeOfInner, MPI_DOUBLE, world_size-2, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            // printf("Process: %d finished communicating\n" ,world_rank);
-        } else {
-            // printf("Process: %d about to send\n" ,world_rank);
-            // Send data up and down
+            // Only send and recive/data to the process above i.e. world_rank-1
             MPI_Isend(&plane[1][1], sizeOfInner, MPI_DOUBLE, world_rank-1, 0, MPI_COMM_WORLD, &myRequest1);
-            // printf("Process: %d finished send 1\n" ,world_rank);
-            MPI_Isend(&plane[sendBot][1], sizeOfInner, MPI_DOUBLE, world_rank+1, 0, MPI_COMM_WORLD, &myRequest2);
-            // printf("Process: %d finished sending\n" ,world_rank);
             MPI_Recv(&plane[0][1], sizeOfInner, MPI_DOUBLE, world_rank-1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        } else {
+            // Send new data up
+            MPI_Isend(&plane[1][1], sizeOfInner, MPI_DOUBLE, world_rank-1, 0, MPI_COMM_WORLD, &myRequest1);
+            // Send new data down 
+            MPI_Isend(&plane[sendBot][1], sizeOfInner, MPI_DOUBLE, world_rank+1, 0, MPI_COMM_WORLD, &myRequest2);
+            // Receive new data from above
+            MPI_Recv(&plane[0][1], sizeOfInner, MPI_DOUBLE, world_rank-1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            // Receive new data from below
             MPI_Recv(&plane[recBot][1], sizeOfInner, MPI_DOUBLE, world_rank+1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            // printf("Process: %d finished communicating\n" ,world_rank);
         }
 
         MPI_Allreduce(MPI_IN_PLACE, &endFlag, 1, MPI_INT, MPI_LAND, MPI_COMM_WORLD);
@@ -244,31 +237,36 @@ int main(int argc, char **argv)
     if(debug) {
         FILE* file;
         char* file_name;
-
+        // Create the file name, so it is easy to see at a glance the world_size and problem size that the results came from
         asprintf(&file_name, "%d-%d.result", world_size, sizeOfPlane);
 
         for(int i=0; i<world_size; i++) {
+            // If it is this processes turn, write out to the file
             if (i == world_rank) {
+                // If this is world_rank 0 then create a new file, otherwise append to the existing file
                 file = fopen(file_name, world_rank == 0 ? "w" : "a");
+                
+                // Unless this is the first or last MPI process, do not write out the first or last line of the array
                 int startingRow = 1;
                 int endingRow = numRows - 1;
                 
+                // If this is the first or last MPI process, then also write out the first or last line of the array respecively
                 if(world_rank == 0) {
                     startingRow = 0;
                 } else if(world_rank == world_size-1) {
                     endingRow = numRows;
                 }
-                
+                // Write out data from the array
                 for(int j=startingRow; j<endingRow; j++) {
-                    for(int k=0; k<sizeOfPlane; k++) {
+                    for(int k=0; k<sizeOfPlane; k++)
                         fprintf(file, "%f, ", subPlane[j][k]);
-                    }
                     fprintf(file, "\n");
                 }
                 fclose(file);
             }
             MPI_Barrier(MPI_COMM_WORLD);
         }
+        // Additional information about how the program ran
         if(!world_rank) {
             file = fopen(file_name, "a");
             fprintf(file, "\nThreads: %d\n",world_size);
