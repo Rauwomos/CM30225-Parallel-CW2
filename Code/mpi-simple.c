@@ -112,7 +112,8 @@ unsigned long relaxPlane(double** plane, int numRows, int sizeOfPlane, double to
         }
 
         MPI_Allreduce(MPI_IN_PLACE, &endFlag, 1, MPI_INT, MPI_LAND, MPI_COMM_WORLD);
-
+        
+        
     } while(!endFlag);
 
     return iterations;
@@ -235,46 +236,46 @@ int main(int argc, char **argv)
     clock_gettime(CLOCK_MONOTONIC, &end);
 
     if(debug) {
-        FILE* file;
-        char* file_name;
-        // Create the file name, so it is easy to see at a glance the world_size and problem size that the results came from
-        asprintf(&file_name, "%d-%d.result", world_size, sizeOfPlane);
+    FILE* file;
+    char* file_name;
+    // Create the file name, so it is easy to see at a glance the world_size and problem size that the results came from
+    asprintf(&file_name, "%d-%d.result", world_size, sizeOfPlane);
 
-        for(int i=0; i<world_size; i++) {
-            // If it is this processes turn, write out to the file
-            if (i == world_rank) {
-                // If this is world_rank 0 then create a new file, otherwise append to the existing file
-                file = fopen(file_name, world_rank == 0 ? "w" : "a");
-                
-                // Unless this is the first or last MPI process, do not write out the first or last line of the array
-                int startingRow = 1;
-                int endingRow = numRows - 1;
-                
-                // If this is the first or last MPI process, then also write out the first or last line of the array respecively
-                if(world_rank == 0) {
-                    startingRow = 0;
-                } else if(world_rank == world_size-1) {
-                    endingRow = numRows;
-                }
-                // Write out data from the array
-                for(int j=startingRow; j<endingRow; j++) {
-                    for(int k=0; k<sizeOfPlane; k++)
-                        fprintf(file, "%f, ", subPlane[j][k]);
-                    fprintf(file, "\n");
-                }
-                fclose(file);
+    for(int i=0; i<world_size; i++) {
+        // If it is this processes turn, write out to the file
+        if (i == world_rank) {
+            // If this is world_rank 0 then create a new file, otherwise append to the existing file
+            file = fopen(file_name, world_rank == 0 ? "w" : "a");
+            
+            // Unless this is the first or last MPI process, do not write out the first or last line of the array
+            int startingRow = 1;
+            int endingRow = numRows - 1;
+            
+            // If this is the first or last MPI process, then also write out the first or last line of the array respecively
+            if(world_rank == 0) {
+                startingRow = 0;
+            } else if(world_rank == world_size-1) {
+                endingRow = numRows;
             }
-            MPI_Barrier(MPI_COMM_WORLD);
-        }
-        // Additional information about how the program ran
-        if(!world_rank) {
-            file = fopen(file_name, "a");
-            fprintf(file, "\nThreads: %d\n",world_size);
-            fprintf(file, "Size of Pane: %d\n", sizeOfPlane);
-            fprintf(file, "Iterations: %lu\n", iterations);
-            fprintf(file, "Time: %Lfs\n", toSeconds(start, end));
+            // Write out data from the array
+            for(int j=startingRow; j<endingRow; j++) {
+                for(int k=0; k<sizeOfPlane; k++)
+                    fprintf(file, "%f, ", subPlane[j][k]);
+                fprintf(file, "\n");
+            }
             fclose(file);
         }
+        MPI_Barrier(MPI_COMM_WORLD);
+    }
+    // Additional information about how the program ran
+    if(!world_rank) {
+        file = fopen(file_name, "a");
+        fprintf(file, "\nThreads: %d\n",world_size);
+        fprintf(file, "Size of Pane: %d\n", sizeOfPlane);
+        fprintf(file, "Iterations: %lu\n", iterations);
+        fprintf(file, "Time: %Lfs\n", toSeconds(start, end));
+        fclose(file);
+    }
     }
 
     MPI_Finalize();

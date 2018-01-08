@@ -9,12 +9,12 @@ def print2DArray(array):
         print()
     return
 
-dirPath = os.path.dirname(os.path.realpath(__file__)) + '/V6/'
+dirPath = os.path.dirname(os.path.realpath(__file__)) + '/V7/'
 globPattern = dirPath + "*.out"
 
-problemSizes = [0,256,512,1024,2048,3072,4096,6144,8096]
+problemSizes = [0,8,16,32,64,128]
 # problemSizes = [0,1024,2048,3072,4096]
-threadCounts = [0,1,2,3,4,6,8,12,16,20,24,28,32,36,40,44,48,52,56,60,64]
+threadCounts = [0,1,2,3,4,6,8,12,16,32,48,64]
 # threadCounts = [0,1,2,3,4,5,6,7]
 filePaths = glob(globPattern)
 

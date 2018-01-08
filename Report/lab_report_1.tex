@@ -53,7 +53,7 @@
 %	Document
 %---------------------------------------------------------
 
-\title{CM30225 Parallel Computing\\Shared Memory} % Title
+\title{CM30225 Parallel Computing\\Distributed Memory} % Title
 \author{Rowan Walshe} % Author name
 
 \date{\today} % Date for the report
@@ -64,8 +64,6 @@
 \pagebreak
 
 \chapter{Code}
-\section{Introduction}
-While working on this coursework, I tested a number of different solutions for parallelising the problem. In this section I will discuss these different approaches along with the advantages and disadvantages of each.
 
 \section{Sequential Version}
 For my sequential version of my program I used one of the programs that I created for the first part of this coursework. The main loop for this program can be seen  below in Code listing 1.1. The program moves through the 2D array from the top left down to the bottom right. At each point it the array it temporally stores the value at the point, then calculates the new value based on the average of the surrounding four values. It then checks to see if the absolute difference between the new and old value is greater than the given precision. If the value at any point changes more than the given precision, then at the end of this iteration of averaging values, it must complete at least one more iteration. By checking if the endFlag is still true before calculating the absolute difference, it reduces the number of times this difference needs to be calculated, reducing overall runtime. This is illustrated in Code Snippet 1.1.
@@ -149,7 +147,7 @@ I'm using \lstinline[style=customc]|MPI_Isend()| instead of \lstinline[style=cus
     MPI_Allreduce(MPI_IN_PLACE, &endFlag, 1, MPI_INT, MPI_LAND, MPI_COMM_WORLD);
 \end{lstlisting}
 
-The MPI\_op MPI\_LAND makes the Allreduce perform a logical and between the endFlag of all of the MPI processes. Therefore if any one of the endFlags is false, then all of them become false, and do another iteration.
+The MPI\_op MPI\_LAND makes the Allreduce perform a logical AND1 between the endFlag of all of the MPI processes. Therefore if any one of the endFlags is false, then all of them become false, and do another iteration.
 
 \subsection{Result Output}
 Initially when the program had finished, in order to output the full plane, I was initially gathering all the data on to the MPI process with world rank 0, from which it would become trivial to either print the result to stdout, or write it to a file. In order to call an MPI\_Gatherv function, the root node had to calculate how many bytes it would be receiving from each MPI process, as well as the offset from the start of the receiving buffer it was to write the data to. The code for this can bee seen below in Code Snippet 1.5
@@ -228,14 +226,14 @@ However in my final version I wrote some code in order to be able to output the 
 \end{lstlisting}
 
 \chapter{Correctness Testing}
-I was able to confirm that for small test sizes my final program was correct by manually calculating the result by hand and comparing my result with that of my program. Due to how I am traversing data in the 2D array, I do not have any race conditions that could affect the result outputted by my program. This means that if the result is correct for the sequential algorithm, then it will also be correct for the parallel algorithm.
-While I was not able to print out the result of every single run, as I would have run out of storage space, and some of the programs would have run out of time, I did compare a number of results. For all of the tests that I did print results from, the solution was identical for all of them. For each test I also printed out the number of iterations that the program took to reach a solution, so that if there was an error that only happened occupationally, but affected the result, it would have been much easier to spot.
+I was able to confirm that for small test sizes my final program was correct by manually calculating the result by hand and comparing my result with that of my program. For larger problem sizes, I wrote the final result of the program to a file, as well as the result one iteration before, to another file. I was then able to use a short Python script to compare the two files, to make sure that there was never a difference greater than 0.0001 between respective values in the two files.\newline\newline
+Another test I performed was setting all of the edges to one, and then running the program with a precision of zero and outputting the result to a file. Looking at the output file, all of the values in the array should be equal to one. I ran both these tests a number of times with various thread counts and problem sizes, with the result coming out as correct each time.
 \chapter{Scalability Testing}
 To measure the performance of my parallel algorithms, I gathered a large range of results from balena, using various thread counts and problem sizes. I will be using a number of common metrics including speedup, efficiency, and the Karp-Flatt Metric to discuss the performance and scalability of my MPI program.\newline
 
 Speedup on P processors is equal to the time to run the sequential algorithm divided by the time to run the parallel algorithm on p processors. This assumes that the problem size is constant.
 
-$$Speedup\ _p=\frac{Sequential\ Time}{Parrallel\ Time\ _p}$$\newline1
+$$Speedup\ _p=\frac{Sequential\ Time}{Parrallel\ Time\ _p}$$\newline
 
 Efficiency is equal to the amount of speedup per processor. It is a measure of how efficiently my parallel algorithm is using the extra processors.
 
@@ -245,6 +243,10 @@ The Karp-Flatt metric can be used to effectively measure the sequential portion 
 
 $$e=\frac{\frac{1}{S_p}-\frac{1}{p}}{1-\frac{1}{p}}$$\newline
 
+Using the value at which the Karp-Flatt metric levels off at, in conjunction with Amdahl's law, it is possible estimate the maximum speedup of a given program, or in this case problem size.\newline
+
+$$Max\ Speedup=\frac{1}{Karp Flatt}$$\newline
+
 Overhead is required to calculate isoefficiency. It effectively tells us how much extra time was added in overheads while parallelising the sequential algorithm. A smaller overhead also means that the parallel algorithm is work efficient.\newline
 
 $$T_o=pT_p - T_s$$\newline
@@ -253,87 +255,61 @@ Isoefficiency allows me to measure how scalable my parallel algorithm is. It is 
 
 $$E=\frac{1}{1+\frac{T_o}{T_s}}$$\newline
 \section{Time to Run}
-To test the scalability of my different algorithms, I measure the time that it took to complete the start up and relaxation part of the program, for various problem sizes and MPI process counts using a precision of 0.0001. Instead of using the time given by the output from balena, I used \lstinline[style=customc]|clock_gettime()|\lstinline[style=customc]|| which can be found in the standard C time library. This allowed me to measure the runtime more precisely, to within 0.000001 seconds. It also allowed me to removed overheads from the timing that could be introduced while the OS starts and cleans up after the program. In practice this overhead becomes insignificant as the problem size increases, as it is something that only has to be done once per run. For version one I ran all my tests three times and calculated the average.
+To test the scalability of my different algorithms, I measure the time that it took to complete the start up and relaxation part of the program, for various problem sizes and MPI process counts using a precision of 0.0001. Instead of using the time given in the output file from balena, I decided to use \lstinline[style=customc]|clock_gettime()|\lstinline[style=customc]|| which can be found in the standard C time library. This allowed me to measure the runtime more precisely, to within 0.000001 seconds. It also allowed me to remove overheads from the timing that could be introduced while the OS starts and cleans up after the program. In practice these overheads become less significant as the runtime increases, as it is something that only has to be done once per run.
 
-As you can see in Figure 3.1, there is a large reduction in runtime from V1 to V2. which allowed me to test much larger problem sizes. As I explained in section 1.3,  I believe the main reason for this is due to more efficient memory accessing. As you can see in Figure 3.1b and 3.2 there is again a slight decrease in time to run between V2 and V3.
+As you can see in Figure 3.1, there is generally a large drop of in runtime as the number of processes starts to increase, which then begins to level off. As the largest problem size that finishes for process count one 2048, this is the max problem that I will being using in my analysis going forward.
 
 \begin{figure}[h]
 \includegraphics[width=1\textwidth]{Runtime}
-\caption{Version 3 Timings}
+\caption{Program Runtime vs Process Count for Various Problem Sizes}
 \label{fig:subim3}
 \end{figure}
-\pagebreak
+
 \section{Speedup}
-Using the timing results that I gathered, I was able to calculate speedup for different values of p, at different problem sizes. As you can see in Figures 3.3 and 3.4, all of the parallel algorithms start off slower than than the sequentail, however by array size 250x250, all of them have speedup greater than one and so are finishing faster than their respective sequential algorithm. With some of the smaller processor counts you can see the speedup starts to level off. This is because of the Amdahl's law, which says that:
+Using the timing results that I gathered, I was able to calculate speedup for various problem sizes and process counts. As you can see in Figure 3.2 the parallel algorithm starts off slower than than the sequential for all process counts, however by array size 64x64, all of them have speedup greater than one and so are finishing faster than the sequential algorithm. The parallel program is intially slower than sequential program, as overheads introduced in order to parallelise the program, add more time than is saved by running in parallel.\newline
+
+Unfortunately as there is a time limit for how long a program can run on balena for, we are unable to see at what problem size, speedup levels off at for some of the larger process counts, as I am unable to test the sequetial program at larger problem sizes. However as stated by Gustafson's Law, as the problem sizes get increased, the sequential part effectively becomes smaller. Therefore I expect that if I was to be able to test larger problem sizes, the larger thread counts would continue to see their speedup increase before eventually levelling off.\newline\newline
+
+\begin{figure}[h]
+\includegraphics[width=1\textwidth]{Speedup2}
+\caption{Speedup vs Problem Size for Various Process Counts}
+\label{fig:subim3}
+\end{figure}
+
+In Figure 3.3, you can see that the speedup for some of the smaller problem sizes begins to level off, even as the process count continues to increase. This is because of the Amdahl's law, which says that:
 \begin{quote}
 "Every program has a natural limit on the maximum speedup it can attain, regardless of the number of processors used"
 \end{quote}
-Unfortunately as there is a time limit for how long a program can run on balena for, we are unable to see where some of the larger threads counts speedup's level off. However as Gustafson's Law says, as the problem sizes get bigger, the sequential part effectively becomes smaller. Therefore I expect that if I was to be able to test larger problem sizes, the larger thread counts would continue to speedup.
-\\\\
-One oddity with my results is that for the problem sizes I was able to test, allowing the program to use 14 threads and even sometimes 12 threads, often outperforms the program that was allowed to use 16 threads. Initially I thought that I had made a mistake and was spawning one too many threads, however some simple testing by having each thread print out their thread ID, it was easy to show that this was not the case. It may be that if I was to continue to increase the problem size, 16 threads would eventually catch up and overtake them, however I was unable to test this hypotheses. 
-\\\\
-Finally, in a few cases the program actually gets superlinear speedup, for example for two, four and six threads of my final. This can bee seen in Figure 3.4 where the speedup lines go slightly above what you would expect their max speedup to be. There could be a few reasons for this, including that the sequential and parallel algorithms are fundamentally different, data is being more efficiently loaded into memory or there are slight variations in the time to run, that happens to cause superlinear speedup in some cases. I am pretty confident that both my sequential and parallel algorithms are so similar that this could not be the cause. While I tested the programs with cachegrind, the results did not show any noticable difference between how data was being pre-fetched for the single and parallel algorithms. However, due to how cachegrind works with multi-threaded programs, the results may not be as accurate compared to a single threaded program. Therefore I am unable to rule out how data is being pre-fetched as a reason for the slight superlinearity. On top of this, while running retests on Version 1, I noticed that even for the single threaded algorithm, there was slight differences in the time it took to run each time, which could also account for the small ammount of superlinear behaviour. Finally, as this superlinear behaviour is most prominent in my third version, there could be some intrinsic behaviour of AVX such as a warmup time that I do not know about and so have not taken into account.
+Unfortunately as there is a node limit on balena, we are unable to see exactly where the speedup's level off at for some of the larger problem sizes. \newline
+
 \begin{figure}[h]
-\begin{subfigure}{0.5\textwidth}
-\includegraphics[width=1\linewidth, height=5cm]{V1-Speedup} 
-\caption{Version 1 Timings}
-\label{fig:subim4}
-\end{subfigure}
-\begin{subfigure}{0.5\textwidth}
-\includegraphics[width=1\linewidth, height=5cm]{V2-Speedup} 
-\caption{Version 2 Timings}
-\label{fig:subim5}
-\end{subfigure}
-\caption{Version 1 and 2 Timings}
-\end{figure}
-\begin{figure}[h]
-\includegraphics[width=1\textwidth]{V3-Speedup}
-\caption{Version 3 Timings}
-\label{fig:subim6}
+\includegraphics[width=1\textwidth]{Speedup}
+\caption{Speedup vs Process Count for Various Problem Sizes}
+\label{fig:subim3}
 \end{figure}
 
+
 \section{Efficiency}
-As stated earlier, efficiency is a measure of how efficiently my parallel algorithm is using the extra processors. For example, if a program has an efficiency of 0.5 for a given problem size an number of processors, then half of the time that the processors could be doing work, is lost to overheads. These graphs show that my algorithms scale pretty as efficiency increases as the problem size does. Another way thinking about this, is that with larger problem sizes, the efficiency decreases slower as the core count increases . This follows the reasoning of Gustafson's law. One thing to note, is that for some problem sizes and processor counts, V3 has lower efficiency than V1. However as V3 is so much faster than V1, I don't think this is much of an issue. Finally, these graphs more easily show the superlinear behaviour that was discussed in section 3.2, 1as efficiency can be seen going above 1.
+As stated earlier, efficiency is a measure of how efficiently my parallel algorithm is using the extra processors. For example, if a program has an efficiency of 0.5 for a given problem size an number of processes, then half of the time that each process could be doing work, is lost to overheads. The graph in Figure 3.4 shows that my algorithm scales pretty well, when the processor count increases, efficiency decreases slower the larger the problem size is. Another way thinking about this, is that efficiency increases as the problem size does, for a given process count. This follows the reasoning of Gustafson's law. As none of the lines on the graph go above one, it is easy to see that none of the programs are displaying superlinear behaviour.
+
 \begin{figure}[h]
-\begin{subfigure}{0.5\textwidth}
-\includegraphics[width=1\linewidth, height=5cm]{V1-Efficiency} 
-\caption{Version 1 Efficiency}
-\label{fig:subim4}
-\end{subfigure}
-\begin{subfigure}{0.5\textwidth}
-\includegraphics[width=1\linewidth, height=5cm]{V2-Efficiency} 
-\caption{Version 2 Efficiency}
-\label{fig:subim5}
-\end{subfigure}
-\caption{Version 1 and 2 Efficiency}
-\end{figure}
-\begin{figure}[h]
-\includegraphics[width=1\textwidth]{V3-Efficiency}
-\caption{Version 3 Efficiency}
-\label{fig:subim6}
+\includegraphics[width=1\textwidth]{Efficiency}
+\caption{Efficiency vs Process Count for Various Problem Sizes}
+\label{fig:subim3}
 \end{figure}
 
 \section{Karp-Flatt Metric}
-Figures 3.7 and 3.8 show the Karp-Flatt metric of my algorithms at various array sizes. As the problem size increases, the Karp-Flatt metric decreases. This is consistent with Gustafson's law, which says that as the problem size increases, the effective sequential part of an algorithm decreases. In some of the tests, the Karp-Flatt metric is more than one as 
+Figure 3.5 shows how the Karp-Flatt metric changes as the process count increase for various problem sizes. As the process count increases, the Karp-Flatt metric decreases, until it eventually levelling off for each respective problem size. In the graph, you can see that the larger the problem size, the smaller the Karp-Flatt metric is. This is consistent with Gustafson's law, which says that as the problem size increases, the effective sequential part of an algorithm decreases. 
 \begin{figure}[h]
-\begin{subfigure}{0.5\textwidth}
-\includegraphics[width=1\linewidth, height=5cm]{V1-Karp-Flatt} 
-\caption{Version 1 Karp-Flatt}
-\label{fig:subim4}
-\end{subfigure}
-\begin{subfigure}{0.5\textwidth}
-\includegraphics[width=1\linewidth, height=5cm]{V2-Karp-Flatt} 
-\caption{Version 2 Karp-Flatt}
-\label{fig:subim5}
-\end{subfigure}
-\caption{Version 1 and 2 Karp-Flatt}
-\end{figure}
-\begin{figure}[h]
-\includegraphics[width=1\textwidth]{V3-Karp-Flatt}
-\caption{Version 3 Karp-Flatt}
-\label{fig:subim6}
+
+\includegraphics[width=1\textwidth]{Karp-Flatt}
+\caption{Karp-Flatt vs Process Count for Various Problem Sizes}
+\label{fig:subim3}
 \end{figure}
 
+\section{Final Note About Graphs}
+One final note about the graphs is that for some of the smaller problem sizes, the line is generally not as smooth. This is because the run times are very small (less than a second), which then causes small runtime variances to create large variances on the graphs.
+
 \chapter{Conclusion}
-My current solution scales well with core count and problem size, with the max recorded speedup being around 12. My results also show that the efficiency of my solution drops as expected, as the thread count increases. The lowest Karp-Flatt value that I messured was around 0.011. Using this value in conjunction with Amdahl's law, I can predict a max speedup of my algorithm on an array size 1600 will be around 90.
+My current solution scales well with process count and problem size, with the max recorded speedup being around 45. My results also show that the efficiency of my solution drops as expected, as the thread count increases. The lowest Karp-Flatt value that I messured was around 0.067. Using this value in conjunction with Amdahl's law, I can predict a max speedup of my algorithm on an array size 2048 will be around 149.
 \end{document}

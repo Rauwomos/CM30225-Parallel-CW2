@@ -5,15 +5,18 @@
 #include <stdbool.h>
 #include <unistd.h>
 
-
-// Given two tm structs, it returns the time difference in seconds
+/**
+ * @brief Calculates the time in seconds between two timespec structs
+ * @param start timespec struct with time less than end
+ * @param end timespec struct with time greater than start
+ * @return time difference between two struct
+ */
 long double toSeconds(struct timespec start, struct timespec end) {
     long long difSec = end.tv_sec - start.tv_sec;
     long long difNSec = end.tv_nsec - start.tv_nsec;
     long long totalNS = difSec*1000000000L + difNSec;
     return (long double) totalNS / 1000000000.0;
 }
-
 
 /**
  * @brief Mallocs memory for a n*n 2D array
@@ -28,18 +31,19 @@ double** newPlane(unsigned int n) {
 }
 
 /**
- * @brief Populates the plane's walls with the values provided, and sets the centre parts to zero
+ * @brief Populates the plane's walls with the values provided, and sets the
+ *         centre parts to zero
  * @param plane pointer to the 2D array
  * @param sizeOfPlane number of rows and length of each row
  * @param top value to put in top edge of 2D array
  * @param bottom value to put in bottom edge of 2D array
  * @param farLeft value to put in left edge of 2D array
  * @param farRight value to put in right edge of 2D array
- * @return a pointer to an array of pointers to each row in the 2D array
  */
-void populatePlane(double** plane, unsigned int sizeOfPlane, double top, double bottom, double farLeft, double farRight)
+void populatePlane(double** plane, unsigned int sizeOfPlane, double top,
+    double bottom, double farLeft, double farRight)
 {   
-    // Generate 2d array of doubles
+    // Fill 2D array with correct values
     for(unsigned int j=0; j<sizeOfPlane; j++) {
         for(unsigned int i=0; i<sizeOfPlane; i++) {
             if(i == 0) {
@@ -55,13 +59,18 @@ void populatePlane(double** plane, unsigned int sizeOfPlane, double top, double 
                 // Bottom
                 plane[i][j] = bottom;
             } else {
+                // Centre 
                 plane[i][j] = 0;
             }
         }
     }
-    return plane;
 }
 
+/**
+ * @brief Prints out a 2D array to stdout
+ * @param plane pointer to the 2D array
+ * @param sizeOfPlane number of rows and length of each row in the array
+ */
 void printPlane(double** plane, unsigned int sizeOfPlane) {
     for(unsigned int x=0; x<sizeOfPlane; x++) {
         for(unsigned int y=0; y<sizeOfPlane; y++) {
@@ -72,38 +81,45 @@ void printPlane(double** plane, unsigned int sizeOfPlane) {
     printf("\n");
 }
 
-// TODO propper doc string
-// Runs the relaxation technique on the 2d array of doubles that it is passed.
-unsigned long relaxPlane(double** plane, unsigned int sizeOfPlane, double tolerance)
+/**
+ * @brief Performs the relaxation algorithm on a 2D array
+ * @param plane pointer to the 2D array
+ * @param sizeOfPlane number of rows and length of each row in the array
+ * @param tolerance the tolerance to perform the relaxation algorithm to
+ * @return the number of iterations taken to perform the relaxation algorithm
+ */
+unsigned long relaxPlane(double** plane, unsigned int sizeOfPlane,
+    double tolerance)
 {
     unsigned long iterations = 0;
     unsigned int i,j;
     double pVal;
     bool endFlag;
+
+    // Main loop
     while (1) {
+        // Reset the flag
         endFlag = true;
+        // Increment iteration counter
         iterations++;
-        // i then j, accessing continues blocks of memory. Increases speed by 1/3
+
         for(i=1; i<sizeOfPlane-1; i++) {
             for(j=1; j<sizeOfPlane-1; j++) {
+                // Temporarily store previous value
                 pVal = plane[i][j];
-                plane[i][j] = (plane[i-1][j] + plane[i+1][j] + plane[i][j-1] + plane[i][j+1])/4;
+                // Calulate new value
+                plane[i][j] = (plane[i-1][j] + plane[i+1][j] + plane[i][j-1]
+                    + plane[i][j+1])/4;
+                /* If the endflag is still true and the absolute differnece
+                 * between the old and new value is greater than the
+                 * tolerance, set the flag to false */
                 if(endFlag && tolerance < fabs(plane[i][j]-pVal)) {
                     endFlag = false;
                 }
             }
         }
 
-        // for(i=1; i<sizeOfPlane-1; i++) {
-        //     for(j=((i+1)%2)+1; j<sizeOfPlane-1; j+=2) {
-        //         pVal = plane[i][j];
-        //         plane[i][j] = (plane[i-1][j] + plane[i+1][j] + plane[i][j-1] + plane[i][j+1])/4;
-        //         if(endFlag && tolerance < fabs(plane[i][j]-pVal)) {
-        //             endFlag = false;
-        //         }
-        //     }
-        // }
-
+        // It the flag was not set to false this iteration, then it is finished
         if(endFlag)
             break;
     }
@@ -113,12 +129,14 @@ unsigned long relaxPlane(double** plane, unsigned int sizeOfPlane, double tolera
 
 int main(int argc, char **argv)
 {
+    // Default values unless not set by command line flags
     unsigned int sizeOfPlane = 10;
     double tolerance = 0.00001;
     double left = 4;
     double right = 2;
     double top = 1;
     double bottom = 3;
+    bool debug = false;
 
     // For timing algorithm
     struct timespec start, end;
@@ -128,8 +146,8 @@ int main(int argc, char **argv)
     unsigned long iterations;
 
     int opt;
-    bool debug = false;
 
+    // Parse any command line flags
     while ((opt = getopt (argc, argv, "u:d:l:r:s:p:h:x")) != -1)
         switch (opt) {
             case 'u':
@@ -157,24 +175,12 @@ int main(int argc, char **argv)
             case 'x':
                 debug = true;
                 break;
-            case '?':
-                fprintf (stderr, "Unknown option character `\\x%x'.\n", optopt);
-                return 1;
             default:
-                fprintf (stderr, "Unknown option character `\\x%x'.\n", optopt);
+                fprintf (stderr, "Unknown option `\\x%x'.\n", optopt);
                 return 1;
     }
 
-    // for(int i=0; i<6; i++) {
-    //     if(argsSet[i]) {
-    //         fprintf (stderr, "All arguments must be set\n");
-    //         // TODO print help stuff
-    //         printf("TODO help info\n");
-    //         return 1;
-    //     }
-    // }
-
-    // Size of the plane must be at least 3x3
+    // Size of the plane must be at least 3x3 or ends with exit code 1
     if(sizeOfPlane < 3) {
         fprintf (stderr, "The size of the plane must be greater than 2\n");
         return 1;
@@ -185,16 +191,22 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    // Create 2D array and populate values
     plane = newPlane(sizeOfPlane);
-    plane = populatePlane(plane, sizeOfPlane, left, right, top, bottom);
+    populatePlane(plane, sizeOfPlane, left, right, top, bottom);
 
+    // Start timer
     clock_gettime(CLOCK_MONOTONIC, &start);
+    // Perform relaxation algorithm
     iterations = relaxPlane(plane, sizeOfPlane, tolerance);
+    // End timer
     clock_gettime(CLOCK_MONOTONIC, &end);
 
+    // Print out plane if debug is true
     if(debug)
         printPlane(plane, sizeOfPlane);
 
+    // Print out information about how the program ran
     printf("Threads: 1\n");
     printf("Size of Pane: %d\n", sizeOfPlane);
     printf("Iterations: %lu\n", iterations);
