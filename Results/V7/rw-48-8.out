@@ -1,0 +1,23 @@
+--------------------------------------------------------------------------
+mpirun was unable to launch the specified application as it could not access
+or execute an executable:
+
+Executable: ./mpi.out
+Node: node-sw-023
+
+while attempting to start process rank 0.
+--------------------------------------------------------------------------
+16 total processes failed to start
+
+########################################################################
+----------------------! Balena Job Details !----------------------------
+
+JobID          : 1283734
+No. of nodes   : 3
+No. of CPUs    : 48
+Timelimit      : 00:01:00
+Elapsed time   : 00:00:01
+Nodelist       : node-sw-[023-024,045]
+
+########################################################################
+
