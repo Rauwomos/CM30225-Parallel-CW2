@@ -1,0 +1,15 @@
+slurmstepd: error: *** JOB 1270728 ON node-sw-045 CANCELLED AT 2018-01-06T23:41:34 DUE TO TIME LIMIT ***
+mpirun: Forwarding signal 18 to job
+
+########################################################################
+----------------------! Balena Job Details !----------------------------
+
+JobID          : 1270728
+No. of nodes   : 1
+No. of CPUs    : 16
+Timelimit      : 00:15:00
+Elapsed time   : 00:15:13
+Nodelist       : node-sw-045
+
+########################################################################
+

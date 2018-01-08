@@ -1,0 +1,15 @@
+slurmstepd: error: *** JOB 1270821 ON node-sw-023 CANCELLED AT 2018-01-07T00:15:13 DUE TO TIME LIMIT ***
+mpirun: Forwarding signal 18 to job
+
+########################################################################
+----------------------! Balena Job Details !----------------------------
+
+JobID          : 1270821
+No. of nodes   : 1
+No. of CPUs    : 16
+Timelimit      : 00:15:00
+Elapsed time   : 00:15:06
+Nodelist       : node-sw-023
+
+########################################################################
+
