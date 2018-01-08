@@ -1,14 +1,17 @@
-/cm/local/apps/slurm/var/spool/job1283677/slurm_script: line 8: ./single.out: No such file or directory
+Threads: 1
+Size of Pane: 64
+Iterations: 1856
+Time: 0.069286s
 
 ########################################################################
 ----------------------! Balena Job Details !----------------------------
 
-JobID          : 1283677
+JobID          : 1283794
 No. of nodes   : 1
 No. of CPUs    : 16
 Timelimit      : 00:01:00
-Elapsed time   : 00:00:01
-Nodelist       : node-sw-045
+Elapsed time   : 00:00:38
+Nodelist       : node-sw-038
 
 ########################################################################
 
